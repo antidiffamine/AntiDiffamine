@@ -1,0 +1,123 @@
+name: Comment Trigger
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  dispatch:
+    # Only fire on comments that contain /antidiffamine (tolerates leading whitespace/newlines)
+    if: contains(github.event.comment.body, '/antidiffamine')
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      actions: write
+
+    steps:
+      - name: Parse comment
+        id: parse
+        run: |
+          python3 - <<'PYEOF'
+          import re, os, sys
+
+          comment = """${{ github.event.comment.body }}"""
+
+          # Find the /antidiffamine command line (tolerates leading whitespace/text before it)
+          cmd_match = re.search(r'/antidiffamine(.*)', comment, re.DOTALL)
+          comment = cmd_match.group(0) if cmd_match else comment
+
+          params = {}
+          for m in re.finditer(r'(\w+)=(\S+)', comment):
+            params[m.group(1)] = m.group(2)
+
+          required = ['repo', 'source', 'target', 'head_branch']
+          missing = [k for k in required if k not in params]
+
+          out = os.environ['GITHUB_OUTPUT']
+          with open(out, 'a') as f:
+            for k, v in params.items():
+              f.write(f"{k}={v}\n")
+            f.write(f"valid={'true' if not missing else 'false'}\n")
+            if missing:
+              f.write(f"error=Missing parameters: {', '.join(missing)}\n")
+          PYEOF
+
+      - name: Post usage error
+        if: steps.parse.outputs.valid != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.issue.number,
+              body: [
+                `❌ **AntiDiffamine**: ${{ steps.parse.outputs.error }}`,
+                ``,
+                `**Usage:**`,
+                `\`\`\``,
+                `/antidiffamine repo=owner/repo source=<sha> target=<sha> head_branch=<branch>`,
+                `\`\`\``
+              ].join('\n')
+            });
+
+      - name: React with eyes (acknowledged)
+        if: steps.parse.outputs.valid == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: context.payload.comment.id,
+              content: 'eyes'
+            });
+
+      - name: Trigger antidiffamine-demo workflow
+        if: steps.parse.outputs.valid == 'true'
+        id: trigger
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run antidiffamine-demo.yml \
+            --repo "${{ github.repository }}" \
+            -f repo="${{ steps.parse.outputs.repo }}" \
+            -f source="${{ steps.parse.outputs.source }}" \
+            -f target="${{ steps.parse.outputs.target }}" \
+            -f head_branch="${{ steps.parse.outputs.head_branch }}"
+
+          # Wait briefly then fetch the latest run ID
+          sleep 5
+          run_id=$(gh run list \
+            --repo "${{ github.repository }}" \
+            --workflow antidiffamine-demo.yml \
+            --limit 1 \
+            --json databaseId \
+            --jq '.[0].databaseId')
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+
+      - name: Post progress comment
+        if: steps.parse.outputs.valid == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runId = '${{ steps.trigger.outputs.run_id }}';
+            const runUrl = `https://github.com/${{ github.repository }}/actions/runs/${runId}`;
+            const owner = '${{ github.repository_owner }}';
+            const repoName = '${{ github.repository }}'.split('/')[1];
+            const pageUrl = `https://${owner}.github.io/${repoName}/runs/${runId}/`;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.issue.number,
+              body: [
+                `🧪 **AntiDiffamine** is running!`,
+                ``,
+                `- [View progress](${runUrl})`,
+                `- Rendered diff will be live at: ${pageUrl}`,
+                ``,
+                `> ⏱️ Typically ready in **2–5 minutes** (workflow + GitHub Pages rebuild). First-ever deployment may take up to 10 minutes.`,
+                `>`,
+                `> Alternatively, the diff is rendered inline in the [Actions run summary](${runUrl}) and is available as soon as the job completes.`
+              ].join('\n')
+            });
