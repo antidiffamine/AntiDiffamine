@@ -16,9 +16,11 @@ name: AntiDiffamine — PR force-push diff
 permissions:
   contents: write       # needed to push to gh-pages (only matters when html_enabled: true)
   pull-requests: write  # needed to post PR comments
+  issues: write
+  actions: write
 
 on:
-  pull_request:
+  pull_request_target:
     types: [synchronize]  # fires on every push to the PR branch, including force-pushes
 
 jobs:
@@ -32,14 +34,15 @@ jobs:
       target: ${{ github.event.after }}    # commit SHA after the force-push
       head_branch: ${{ github.base_ref }}  # base branch of the PR (e.g. main)
       html_enabled: true                   # set to false to skip HTML rendering and Pages deployment
-    secrets: inherit                       # passes GITHUB_TOKEN from this repo to the called workflow
 
   comment-result:
     needs: antidiffamine
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
+      contents: write 
       issues: write
+      actions: write
     steps:
       - name: Comment with diff link
         uses: actions/github-script@v7
