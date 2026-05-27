@@ -37,6 +37,7 @@ jobs:
 
   comment-result:
     needs: antidiffamine
+    if: needs.antidiffamine.outputs.bases_match != 'true'
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write

@@ -52,6 +52,9 @@ on:
       page_url:
         description: 'URL of the hosted diff page (available ~2 min after job completes)'
         value: ${{ jobs.rebase-diff.outputs.page_url }}
+      bases_match:
+        description: 'true when source and target share the same merge base (no rebase needed — diff and comment are skipped)'
+        value: ${{ jobs.rebase-diff.outputs.bases_match }}
 
 jobs:
   rebase-diff:
@@ -60,6 +63,7 @@ jobs:
       contents: write
     outputs:
       page_url: ${{ steps.deploy.outputs.page_url }}
+      bases_match: ${{ steps.bases.outputs.bases_match }}
     env:
       GIT_AUTHOR_NAME: AntiDiffamine
       GIT_AUTHOR_EMAIL: antidiffamine@github-actions
@@ -163,7 +167,20 @@ jobs:
             echo "rebase_failed=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: No rebase needed — direct compare
+        if: steps.bases.outputs.bases_match == 'true' && github.event_name == 'workflow_dispatch'
+        run: |
+          COMPARE_URL="https://github.com/${{ inputs.repo }}/compare/${{ inputs.source }}..${{ inputs.target }}"
+          {
+            echo "## 🧪 No AntiDiffamine needed"
+            echo ""
+            echo "Source and target share the same merge base — a direct compare covers the full diff."
+            echo ""
+            echo "[View comparison on GitHub](${COMPARE_URL})"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Render diff
+        if: steps.bases.outputs.bases_match == 'false'
         working-directory: repo
         env:
           SOURCE: ${{ inputs.source }}
@@ -507,14 +524,14 @@ jobs:
           PYEOF
 
       - name: Upload diff HTML
-        if: inputs.html_enabled != false
+        if: inputs.html_enabled != false && steps.bases.outputs.bases_match == 'false'
         uses: actions/upload-artifact@v4
         with:
           name: diff-html
           path: repo/diff.html
 
       - name: Deploy to GitHub Pages
-        if: inputs.html_enabled != false
+        if: inputs.html_enabled != false && steps.bases.outputs.bases_match == 'false'
         id: deploy
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
