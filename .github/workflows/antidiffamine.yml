@@ -21,7 +21,7 @@ permissions:
 
 on:
   pull_request_target:
-    types: [head_ref_force_pushed]  # fires on force-pushes
+    types: [synchronize]  # fires on force-pushes
 
 jobs:
   antidiffamine:
