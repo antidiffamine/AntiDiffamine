@@ -39,47 +39,20 @@ The bot will react 👀 to acknowledge, then reply with:
 
 ## 2. Add it to your own repo
 
-Drop [`examples/antidiffamine.yml`](examples/antidiffamine.yml) into your repo at `.github/workflows/antidiffamine.yml`. No secrets needed.
+Drop [`.github.workflows/antidiffamine.yml`](.github.workflows/antidiffamine.yml) into your repo at `.github/workflows/antidiffamine.yml`. No secrets needed.
 
 > **Permissions note:** Two settings are required in your repo (**Settings → Actions → General**):
 > 1. **Workflow permissions → Read and write permissions** — lets the workflow push to `gh-pages`.
 > 2. **Allow GitHub Actions to create and approve pull requests** — lets the workflow post PR comments.
->
-> `secrets: inherit` is required on the `antidiffamine` job so the caller's `GITHUB_TOKEN` (not the AntiDiffamine repo's token) is used inside the reusable workflow when pushing to `gh-pages`.
 
 ```yaml
 # .github/workflows/antidiffamine.yml
 name: AntiDiffamine — PR force-push diff
 
-on:
-  pull_request:
-    types: [synchronize]
-
-jobs:
-  antidiffamine:
-    if: github.event.before != github.event.after
-    uses: antidiffamine/AntiDiffamine/.github/workflows/antidiffamine-demo.yml@main
-    with:
-      repo: ${{ github.repository }}
-      source: ${{ github.event.before }}
-      target: ${{ github.event.after }}
-      head_branch: ${{ github.base_ref }}
-    permissions:
-      contents: write
-
-  comment-result:
-    needs: antidiffamine
-    runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
-    steps:
-      - uses: actions/github-script@v7
-        with:
-          script: |
-            # posts a comment on the PR with links to the diff
+...
 ```
 
-Whenever someone force-pushes to a PR branch, the workflow posts a comment like:
+Whenever a force-pushed hetero-ancestral commit pair occurred in a PR, the workflow posts a comment like:
 
 > 🔁 **Force-push detected** — here's what changed:
 >
@@ -103,7 +76,7 @@ To get a hosted HTML visualization linked in the PR comment, set up Pages in thr
 2. Go to **Settings → Pages → Build and deployment**, set **Source** to **Deploy from a branch**, and select the `gh-pages` branch with `/ (root)`.
 3. Ensure the workflow has write access: the `permissions: contents: write` key in `antidiffamine.yml` covers this.
 
-Once configured, each diff run pushes a standalone `index.html` to `gh-pages` and the PR comment includes a direct link to it. If Pages is not set up, this step is skipped automatically and only the inline Actions summary link is posted — no configuration needed to use the basic diff.
+Once configured, each diff run pushes a standalone `index.html` to `gh-pages` and the PR comment includes a direct link to it. If Pages is not set up, this step is skipped automatically, and only the inline Actions summary link is posted.
 
 #### Cleaning up old pages
 
