@@ -26,7 +26,7 @@ on:
 jobs:
   antidiffamine:
     # Only run when the branch was actually force-pushed (before != after)
-    if: github.event.before != github.event.after
+    if: github.event.forced == true
     uses: antidiffamine/AntiDiffamine/.github/workflows/antidiffamine-demo.yml@main
     with:
       repo: ${{ github.repository }}
