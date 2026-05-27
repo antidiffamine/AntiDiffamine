@@ -21,12 +21,12 @@ permissions:
 
 on:
   pull_request_target:
-    types: [synchronize]  # fires on every push to the PR branch, including force-pushes
+    types: [synchronize]  # fires on force-pushes
 
 jobs:
   antidiffamine:
     # Only run when the branch was actually force-pushed (before != after)
-    if: github.event.forced == true
+    # if: github.event.forced == true
     uses: antidiffamine/AntiDiffamine/.github/workflows/antidiffamine-demo.yml@main
     with:
       repo: ${{ github.repository }}
